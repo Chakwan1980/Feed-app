@@ -1,7 +1,5 @@
 import express from 'express';
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import pkg from 'pg';
 
 // Creating the express app
 const app = express();
@@ -10,73 +8,90 @@ const PORT = 3000;
 // Middleware for parsing JSON
 app.use(express.json());
 
-// Determining directory and file location
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Creating a database connection
 
-const feedbackFilePath = path.join(__dirname, 'feedback.json');
+const { Pool } = pkg;
 
-// Helper functions
-const loadFeedback = async () => {
+const pool = new Pool({
+    user: 'postgres',
+    host: 'postgres-db', // Nombre del contenedor
+    database: 'feedbackdb',
+    password: 'password',
+    port: 5432
+});
+
+// Creating the feedback table
+const createTable = async () => {
     try {
-        const data = await fs.readFile(feedbackFilePath, 'utf-8');
-        return JSON.parse(data);
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS feedback (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                text TEXT NOT NULL
+                );
+            `);
+
     } catch (error) {
-        return [];
+        console.error('Error creating table: ', error);
     }
 }
 
-const saveFeedback = async (feedback) => {
-    await fs.writeFile(feedbackFilePath, JSON.stringify(feedback, null, 2));
-}
+createTable();
 
-// POST /feedback - Add new feedback
+// POST /feedback - fuegt neues Feedback hinzu
 app.post('/feedback', async (req, res) => {
     const { title, text } = req.body;
 
-    if (!title || !text) {
-        return res.status(400).json({ message: "Title and text are required in the body." });
+    if (!title || !text ) {
+        return res.status(400).json({ message: "title und text sind im body erforderlich." })
     }
     
     try {
-        const feedback = await loadFeedback();
-        feedback.push({ title, text });
-        await saveFeedback(feedback);
-        res.status(201).json({ message: "Feedback successfully saved." });
+        const query = `INSERT INTO feedback (title, text) VALUES ($1, $2);`;
+        await pool.query(query, [title, text]);
+        res.status(201).json({ message: "Toll!!! Feedback erfolgreich gespeichert."});
     } catch (error) {
-        res.status(500).json({ message: "Error saving feedback." });
+        res.status(500).json({ message: "Fehler beim Speichern des Feedbacks." });
     }
+
 });
 
-// GET /feedback - Get all feedback
+
+// GET /feedback - gibt alle Feedback Eintraege zurueck
 app.get('/feedback', async (req, res) => {
+
     try {
-        const feedback = await loadFeedback();
-        res.status(200).json(feedback);
+        const query = `SELECT * FROM feedback;`;
+        const result = await pool.query(query);
+        res.status(200).json(result.rows);
+
     } catch (error) {
-        res.status(500).json({ message: "Error retrieving feedback." });
+        res.status(500).json({ message: "Fehler beim Abrufen des Feedbacks." });
     }
+
 });
 
-// DELETE /feedback/:title - Delete feedback by title
+// DELETE /feedback/title - Loescht Feedback mit dem gegebenen title
 app.delete('/feedback/:title', async (req, res) => {
     const { title } = req.params;
 
     try {
-        let feedback = await loadFeedback();
-        const filteredFeedback = feedback.filter(fb => fb.title !== title);
+        const query = `DELETE FROM feedback WHERE title = $1;`;
+        const result = await pool.query(query, [title]);
 
-        if (feedback.length === filteredFeedback.length) {
-            return res.status(404).json({ message: "Feedback not found." });
+        if ( result.rowCount === 0 ) {
+            return res.status(404).json({ message: "Feedback nicht gefunden." });
         }
 
-        await saveFeedback(filteredFeedback);
-        res.status(200).json({ message: "Feedback successfully deleted." });
+        res.status(200).json({ message: "Feedback erfolgreich geloescht." });
+
     } catch (error) {
-        res.status(500).json({ message: "Error deleting feedback." });
+        res.status(500).json({ message: "Fehler beim Loeschen des Feedbacks." });
     }
+
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
+// Start the app
+app.listen(PORT, ()=> {
+    console.log(`Server laeuft auf http://localhost:${PORT}`);
 });

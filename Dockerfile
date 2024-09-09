@@ -1,20 +1,20 @@
-# Usa la imagen base de Node.js
+# Verwende das Basis-Image von Node.js
 FROM node:22-bookworm-slim
 
-# Crea un directorio de trabajo dentro del contenedor
+# Erstelle ein Arbeitsverzeichnis im Container
 WORKDIR /usr/src/app
 
-# Copia el package.json y package-lock.json para instalar las dependencias
+# Kopiere die Dateien package.json und package-lock.json, um die Abhängigkeiten zu installieren
 COPY package*.json ./
 
-# Instala las dependencias de la aplicación
+# Installiere die Abhängigkeiten der Anwendung
 RUN npm install
 
-# Copia el resto del código fuente al contenedor
+# Kopiere den restlichen Quellcode in den Container
 COPY . .
 
-# Expon el puerto en el que la aplicación se ejecutará
+# Öffne den Port, auf dem die Anwendung laufen wird
 EXPOSE 3000
 
-# Comando para ejecutar la aplicación
-CMD [ "node", "app.js" ]
+# Befehl zum Ausführen der Anwendung
+CMD [ "npm", "run", "dev" ]
